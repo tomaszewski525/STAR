@@ -101,7 +101,10 @@ path_neutral_star = '/mypath/neutral/model.npz'
 ```
 pip install .
 ```
-
+8. Install cuda
+```
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
 ### Usage
 
 Under demos/* there are scripts demonstrating how to load and use the model in all frameworks. 

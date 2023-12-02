@@ -21,18 +21,17 @@
 import numpy as np
 import os
 from losses import convert_smpl_2_star
-
+import open3d as o3d
 ########################################################################################################################
 path_smpl_meshes = ''      #Path SMPL Meshes, a numpy array of SMPL verticies (batch_size x 6890 x 3)
-path_save_star_parms = '' #Path to save the star paramters
+path_save_star_parms = 'dupa.npy' #Path to save the star paramters
 
 star_gender = 'male'   #STAR Model Gender (options: male,female,neutral).
 MAX_ITER_EDGES = 100    #Number of LBFGS iterations for an on edges objective
 MAX_ITER_VERTS = 1500   #Number of LBFGS iterations for an on vertices objective
 NUM_BETAS = 10
 
-if not os.path.exists(path_smpl_meshes):
-    raise RuntimeError('Path to Meshes does not exist! %s'%(path_smpl_meshes))
+
 
 opt_parms = {'MAX_ITER_EDGES':MAX_ITER_EDGES ,
              'MAX_ITER_VERTS':MAX_ITER_VERTS,
@@ -40,7 +39,15 @@ opt_parms = {'MAX_ITER_EDGES':MAX_ITER_EDGES ,
              'GENDER':star_gender}
 ########################################################################################################################
 print('Loading the SMPL Meshes and ')
-smpl = np.load(path_smpl_meshes)
+
+# Load PLY file
+ply_file_path = "michal_skan.ply"
+point_cloud = o3d.io.read_point_cloud(ply_file_path)
+mesh = o3d.io.read_triangle_mesh(ply_file_path)
+vertices = np.asarray(mesh.vertices)
+smpl = vertices[np.newaxis, :]
+
+
 np_poses , np_betas , np_trans , star_verts = convert_smpl_2_star(smpl,**opt_parms)
 results = {'poses':np_poses,'betas':np_betas,'trans':np_trans,'star_verts':star_verts}
 print('Saving the results %s.'%(path_save_star_parms))
