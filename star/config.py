@@ -20,9 +20,9 @@
 # Ahmed A. A. Osman
 
 import os
-path_male_star = ''
-path_female_star = ''
-path_neutral_star = ''
+path_male_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR_2/STAR/models/male/model.npz'
+path_female_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR_2/STAR/models/female/model.npz'
+path_neutral_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR_2/STAR/models/neutral/model.npz'
 
 data_type = 'float32'
 
