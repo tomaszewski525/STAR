@@ -57,6 +57,22 @@ def edge_loss(d,smpl):
     edge_obj = edges_for(d) - edges_for(smpl)
     return edge_obj
 
+def edge_loss_scan(star, scan):
+    print(star)
+    print(scan)
+def verts_loss_scan(star,scan):
+    # Reshape tensors to have a common size
+    str_1 = star.view(-1, 3)
+    str_2 = scan.view(-1, 3)
+
+    # Calculate the Euclidean distance between each pair of points
+    distances = torch.cdist(str_1, str_2, p=2)
+
+    # Sum up the distances
+    total_distance = torch.sum(distances)
+    print(total_distance/10e10)
+    return total_distance/10e10
+
 def verts_loss(d,smpl):
     return torch.sum((d-smpl)**2.0)
 
@@ -120,7 +136,7 @@ def convert_smpl_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
         # objective
         def edge_loss_closure():
             # square difference between edges
-            loss = torch.sum(edge_loss(d, smpl) ** 2.0)
+            loss = torch.sum(edge_loss_scan(d, smpl) ** 2.0)
             return loss
 
         # zero out gradients
@@ -252,3 +268,123 @@ def convert_smplx_2_star(smplx,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
     np_star_verts = d.detach().cpu().numpy()
 
     return np_poses, np_betas, np_trans , np_star_verts , star.f
+
+
+
+def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
+    '''
+        Convert SMPL meshes to STAR
+    :param smpl:
+    :return:
+    '''
+
+    #   In other words, it's assuming that smpl is a NumPy array or some other compatible data structure, and it's converting it to a PyTorch tensor residing on the GPU.
+    smpl = torch.cuda.FloatTensor(smpl)
+    batch_size = smpl.shape[0]
+
+    if batch_size > 32:
+        import warnings
+        warnings.warn(
+            'The Default optimization parameters (MAX_ITER_EDGES,MAX_ITER_VERTS) were tested on batch size 32 or smaller batches')
+
+    # Init Star model
+    star = STAR(gender=GENDER)
+
+    # Init float tensor for star and wrap it with Variable for gradient calculations
+    hands_pose = torch.cuda.FloatTensor(np.zeros((batch_size, 24)))
+    hands_pose = Variable(hands_pose, requires_grad=True)
+
+
+    global_pose = torch.cuda.FloatTensor(np.zeros((batch_size, 3)))
+    global_pose = Variable(global_pose, requires_grad=True)
+    # 72 -3 becuase of joints number
+    joints_pose = torch.cuda.FloatTensor(np.zeros((batch_size, 72 - 3)))
+    joints_pose = Variable(joints_pose, requires_grad=True)
+    betas = torch.cuda.FloatTensor(np.zeros((batch_size, NUM_BETAS)))
+    betas = Variable(betas, requires_grad=True)
+    trans = torch.cuda.FloatTensor(np.zeros((batch_size, 3)))
+    trans = Variable(trans, requires_grad=True)
+
+    # Optimizer parameters
+    """
+    Overall, it seems like this code is setting up an optimization process using the L-BFGS algorithm 
+    to update the global_pose variable based on some objective function. The poses tensor is then formed
+    by concatenating global_pose with another tensor, possibly for further use in the optimization process or subsequent computations."""
+
+    learning_rate = 1e-1
+    # Target of optimalization is global pose
+    optimizer = torch.optim.LBFGS([global_pose], lr=learning_rate)
+    poses = torch.cat((global_pose, joints_pose), 1)
+
+    # Init star with torch
+    d = star(poses, betas, trans)
+
+    ########################################################################################################################
+    # Fitting the model with an on edges objective first
+    print('STAGE 1/2 - Fitting the Model on Edges Objective')
+    for t in range(MAX_ITER_EDGES):
+
+        # New star model
+        poses = torch.cat((global_pose, joints_pose), 1)
+        d = star(poses, betas, trans)
+
+        # objective
+        def edge_loss_closure():
+            # square difference between edges
+            loss = torch.sum(edge_loss(d, smpl) ** 2.0)
+            ################
+            return loss
+
+        # zero out gradients
+        optimizer.zero_grad()
+
+        # save gradients and calculate loss
+        edge_loss_closure().backward()
+
+        # next step, optimize global pose params
+        optimizer.step(edge_loss_closure)
+
+    # Optimize joints pose
+    optimizer = torch.optim.LBFGS([joints_pose], lr=learning_rate)
+    for t in range(MAX_ITER_EDGES):
+        # New star model
+        poses = torch.cat((global_pose, joints_pose), 1)
+        d = star(poses, betas, trans)
+
+        # objective function
+        def edge_loss_closure():
+            # square difference between edges
+            loss = torch.sum(edge_loss(d, smpl) ** 2.0)
+            return loss
+
+        optimizer.zero_grad()
+        edge_loss_closure().backward()
+        optimizer.step(edge_loss_closure)
+
+    ########################################################################################################################
+    # Fitting the model with an on vertices objective
+    print('STAGE 2/2 - Fitting the Model on a Vertex Objective')
+    # Target of optimalization is joints_pose, global_pose, trans, betas
+    optimizer = torch.optim.LBFGS([joints_pose, global_pose, trans, betas], lr=learning_rate)
+    for t in range(MAX_ITER_VERTS):
+        poses = torch.cat((global_pose, joints_pose), 1)
+        d = star(poses, betas, trans)
+
+        print(t)
+        print(MAX_ITER_VERTS)
+        def vertex_closure():
+            loss = torch.sum(verts_loss_scan(d, smpl))
+            return loss
+
+        optimizer.zero_grad()
+        vertex_closure().backward()
+        optimizer.step(vertex_closure)
+
+    ########################################################################################################################
+    np_poses = poses.detach().cpu().numpy()
+    np_betas = betas.detach().cpu().numpy()
+    np_trans = trans.detach().cpu().numpy()
+    np_star_verts = d.detach().cpu().numpy()
+    ########################################################################################################################
+
+    return np_poses, np_betas, np_trans , np_star_verts
