@@ -22,36 +22,38 @@ import numpy as np
 import os
 from losses import convert_scan_2_star
 import open3d as o3d
+import torch
+import time
+
+def optimize_star_to_scan(scan_file_path="transformed_mesh.ply",path_save_star_parms='michal_skan_star.npy'):
+    ### Clear unused GPU memory
+    torch.cuda.empty_cache()
 
 
-########################################################################################################################
-# load scanned mesh
-scan_file_path = "michal_skan.ply"
-scan_mesh = o3d.io.read_triangle_mesh(scan_file_path)
-scan_vertices = np.asarray(scan_mesh.vertices)
-scan_vertices_npy = scan_vertices[np.newaxis, :]
-
-path_save_star_parms = 'michal_skan_star.npy' #Path to save the star paramters
-
-star_gender = 'male'   #STAR Model Gender (options: male,female,neutral).
-MAX_ITER_EDGES = 100    #Number of LBFGS iterations for an on edges objective
-MAX_ITER_VERTS = 1500   #Number of LBFGS iterations for an on vertices objective
-NUM_BETAS = 10
+    scan_mesh = o3d.io.read_triangle_mesh(scan_file_path)
+    scan_vertices = np.asarray(scan_mesh.vertices)
+    scan_vertices_npy = scan_vertices[np.newaxis, :]
 
 
-
-opt_parms = {'MAX_ITER_EDGES':MAX_ITER_EDGES ,
-             'MAX_ITER_VERTS':MAX_ITER_VERTS,
-             'NUM_BETAS':NUM_BETAS,
-             'GENDER':star_gender}
-########################################################################################################################
-
-print('Loading the SMPL Meshes and ')
+    star_gender = 'male'   #STAR Model Gender (options: male,female,neutral).
+    MAX_ITER_EDGES = 100    #Number of LBFGS iterations for an on edges objective
+    MAX_ITER_VERTS = 100   #Number of LBFGS iterations for an on vertices objective
+    NUM_BETAS = 10
 
 
 
-np_poses , np_betas , np_trans , star_verts = convert_scan_2_star(scan_vertices_npy,**opt_parms)
-results = {'poses':np_poses,'betas':np_betas,'trans':np_trans,'star_verts':star_verts}
-print('Saving the results %s.'%(path_save_star_parms))
-np.save(path_save_star_parms,results)
+    opt_parms = {'MAX_ITER_EDGES':MAX_ITER_EDGES ,
+                 'MAX_ITER_VERTS':MAX_ITER_VERTS,
+                 'NUM_BETAS':NUM_BETAS,
+                 'GENDER':star_gender}
+    ########################################################################################################################
+
+    print('Loading the SMPL Meshes and ')
+
+
+
+    np_poses , np_betas , np_trans , star_verts, np_scale = convert_scan_2_star(scan_vertices_npy,**opt_parms)
+    results = {'poses':np_poses,'betas':np_betas,'trans':np_trans,'star_verts':star_verts, 'scale':np_scale}
+    print('Saving the results %s.'%(path_save_star_parms))
+    np.save(path_save_star_parms,results)
 

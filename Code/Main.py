@@ -1,0 +1,213 @@
+import subprocess
+
+from PyNuitrack import py_nuitrack
+
+import sys, os
+sys.path.append(os.getcwd())
+import torch
+import numpy as np
+
+from scipy.spatial.transform import Rotation
+import cv2
+import open3d as o3d
+import Texturize
+import FindTransform
+import ChangeOptimPose
+import convert_scan_to_star
+
+scan_path = "michal_skan.ply"
+transformed_scan_path = "transformed_mesh.ply"
+star_poses_save_path = "star_poses.npy"
+star_scan_poses_save_path='michal_skan_star.npy'
+texturized_scan_poses_save_path = 'michal_skan_star_colored.npy'
+
+allign_model = False
+change_optim_pose = False
+optimize_model = False
+texturize_model = False
+visualize_model = False
+apply_joints = False
+
+if allign_model:
+    FindTransform.allign_model(scan_path, transformed_scan_path)
+
+if change_optim_pose:
+    manipulator = ChangeOptimPose.ModelManipulator(star_poses_save_path, transformed_scan_path)
+    manipulator.viusalize()
+
+if optimize_model:
+    convert_scan_to_star.optimize_star_to_scan(transformed_scan_path, star_scan_poses_save_path)
+
+if texturize_model:
+    Texturize.texturize_scan_nnn(star_scan_poses_save_path, transformed_scan_path, texturized_scan_poses_save_path)
+
+# 1. Repair scan
+# 2. Optimize model
+# 3. Texturize model
+# 4. Aplly Joints rotations
+
+if apply_joints:
+    #################### OPTIMIZE MODEL ############################
+
+
+    ####################### LOAD STAR MODEL ########################
+    # Load the NumPy structured array from a .npy file
+    point_cloud_data = np.load('michal_skan_star_colored.npy', allow_pickle=True).item()
+    print(point_cloud_data)
+    # Extract star_verts
+    trans = point_cloud_data['trans']
+    poses = point_cloud_data['poses']
+    betas = point_cloud_data['betas']
+    star_verts = point_cloud_data['star_verts'][0]
+    scale = point_cloud_data['scale'][0]
+    star_colors = point_cloud_data['colors']
+    ################################################################
+
+
+    ######################## CREATE VISUALIZER #########################
+    # Create a visualization window
+    visualizer = o3d.visualization.Visualizer()
+    visualizer.create_window()
+
+    ####################################################################
+
+    ######################## DATA #########################
+    smpl_joints = {
+        0: 'pelvis',
+        1: 'left_hip',
+        2: 'right_hip',
+        3: 'spine1',
+        4: 'left_knee',
+        5: 'right_knee',
+        6: 'spine2',
+        7: 'left_ankle',
+        8: 'right_ankle',
+        9: 'spine3',
+        10: 'left_foot',
+        11: 'right_foot',
+        12: 'neck',
+        13: 'left_collar',
+        14: 'right_collar',
+        15: 'head',
+        16: 'left_shoulder',
+        17: 'right_shoulder',
+        18: 'left_elbow',
+        19: 'right_elbow',
+        20: 'left_wrist',
+        21: 'right_wrist',
+        22: 'left_hand',
+        23: 'right_hand'
+    }
+    nuitrack_to_smpl = {
+        py_nuitrack.JointType.waist:[0],
+        py_nuitrack.JointType.left_hip:[1],
+        py_nuitrack.JointType.right_hip:[2],
+        py_nuitrack.JointType.torso:[3, 6, 9],
+        py_nuitrack.JointType.left_knee:[4],
+        py_nuitrack.JointType.right_knee:[5],
+        py_nuitrack.JointType.left_ankle:[7],
+        py_nuitrack.JointType.right_ankle:[8],
+        py_nuitrack.JointType.neck:[12],
+        py_nuitrack.JointType.left_collar:[13],
+        py_nuitrack.JointType.right_collar:[14],
+        py_nuitrack.JointType.head:[15],
+        py_nuitrack.JointType.left_shoulder:[16],
+        py_nuitrack.JointType.right_shoulder:[17],
+        py_nuitrack.JointType.left_elbow:[18],
+        py_nuitrack.JointType.right_elbow:[19],
+        py_nuitrack.JointType.left_wrist:[20],
+        py_nuitrack.JointType.right_wrist:[21],
+        py_nuitrack.JointType.left_hand:[22],
+        py_nuitrack.JointType.right_hand:[23],
+    }
+
+    all_nuitrack_joint_types = [py_nuitrack.JointType.waist, py_nuitrack.JointType.left_hip, py_nuitrack.JointType.right_hip,
+    py_nuitrack.JointType.torso, py_nuitrack.JointType.left_knee, py_nuitrack.JointType.right_knee, py_nuitrack.JointType.left_ankle,
+    py_nuitrack.JointType.right_ankle, py_nuitrack.JointType.neck, py_nuitrack.JointType.left_collar, py_nuitrack.JointType.right_collar,
+    py_nuitrack.JointType.head, py_nuitrack.JointType.left_shoulder, py_nuitrack.JointType.right_shoulder, py_nuitrack.JointType.left_elbow, py_nuitrack.JointType.right_elbow,
+    py_nuitrack.JointType.left_wrist, py_nuitrack.JointType.right_wrist, py_nuitrack.JointType.left_hand, py_nuitrack.JointType.right_hand
+    ]
+
+    nuitrack_to_smpl_axis = {
+        py_nuitrack.JointType.waist:[-1, 1, 1],
+        py_nuitrack.JointType.left_hip:[-1, 1, 1],
+        py_nuitrack.JointType.right_hip:[-1, 1, 1],
+        py_nuitrack.JointType.torso:[-1, 1, 1],
+        py_nuitrack.JointType.left_knee:[-1, 1, 1],
+        py_nuitrack.JointType.right_knee:[-1, 1, 1],
+        py_nuitrack.JointType.left_ankle:[-1, 1, 1],
+        py_nuitrack.JointType.right_ankle:[-1, 1, 1],
+        py_nuitrack.JointType.neck:[-1, 1, 1],
+        py_nuitrack.JointType.left_collar:[1, 1, 1],
+        py_nuitrack.JointType.right_collar:[1, 1, 1],
+        py_nuitrack.JointType.head:[1, 1, 1],
+        py_nuitrack.JointType.left_shoulder:[1, -1, 1],
+        py_nuitrack.JointType.right_shoulder:[1, -1, 1],
+        py_nuitrack.JointType.left_elbow:[-1, -1, 1],
+        py_nuitrack.JointType.right_elbow:[-1, -1, 1],
+        py_nuitrack.JointType.left_wrist:[1, -1, 1],
+        py_nuitrack.JointType.right_wrist:[1, -1, 1],
+        py_nuitrack.JointType.left_hand:[1, -1, 1],
+        py_nuitrack.JointType.right_hand:[1, -1, 1],
+    }
+
+    ###############################################################
+    def convert_rot_mat_to_euler(rot_mat):
+        ### first transform the matrix to euler angles
+        r = Rotation.from_matrix(rot_mat)
+        angles = r.as_rotvec()
+        return angles
+
+    def manipulate_joint(joint_num, new_value, poses):
+        poses[0,joint_num*3] = new_value[0]
+        poses[0,joint_num*3+1] = new_value[1]
+        poses[0,joint_num*3+2] = new_value[2]
+        return poses
+
+
+
+    #################### INIT NUITRACK ####################
+    nuitrack = py_nuitrack.Nuitrack()
+    nuitrack.init()
+
+    devices = nuitrack.get_device_list()
+    for i, dev in enumerate(devices):
+        print(dev.get_name(), dev.get_serial_number())
+        if i == 0:
+            #dev.activate("ACTIVATION_KEY") #you can activate device using python api
+            print(dev.get_activation())
+            nuitrack.set_device(dev)
+            print(nuitrack.get_version())
+            print(nuitrack.get_license())
+            nuitrack.create_modules()
+            nuitrack.run()
+
+
+    while visualizer.poll_events():
+        ######### Visualize ##########
+        print(poses)
+        visualizer.clear_geometries()
+        d = Texturize.create_star_model(poses, betas, trans)
+        avatar = Texturize.create_star_mesh(d, star_colors)
+        visualizer.add_geometry(avatar)
+        visualizer.update_renderer()
+
+        # GET NUITRACK JOINT VALUE
+        key = cv2.waitKey(1)
+        nuitrack.update()
+        data = nuitrack.get_skeleton()
+        for skel in data.skeletons:
+            over_conf = 0
+            under_conf = 0
+            all_joints = all_nuitrack_joint_types.copy()
+            for el in skel[1:]:
+                if el.confidence > 0.7:
+                    all_joints.remove(el.type)
+                    joints = nuitrack_to_smpl[el.type]
+                    axis_convert = nuitrack_to_smpl_axis[el.type]
+
+                    for joint in joints:
+                        orientation = convert_rot_mat_to_euler(el.orientation)
+                        orientation = [axis_convert[0]*orientation[0], axis_convert[1]*orientation[1], axis_convert[2]*orientation[2]]
+                        poses = manipulate_joint(joint, orientation, poses)
+
