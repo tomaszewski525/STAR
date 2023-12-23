@@ -52,7 +52,7 @@ def optimize_star_to_scan(scan_file_path="transformed_mesh.ply",path_save_star_p
 
 
 
-    np_poses , np_betas , np_trans , star_verts, np_scale = convert_scan_2_star(scan_vertices_npy,**opt_parms)
+    np_poses , np_betas , np_trans , star_verts, np_scale = convert_scan_2_star(scan_vertices_npy,path_save_star_parms,**opt_parms)
     results = {'poses':np_poses,'betas':np_betas,'trans':np_trans,'star_verts':star_verts, 'scale':np_scale}
     print('Saving the results %s.'%(path_save_star_parms))
     np.save(path_save_star_parms,results)

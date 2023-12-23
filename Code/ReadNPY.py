@@ -1,7 +1,7 @@
 import numpy as np
 
 # Specify the path to your .npy file
-file_path = path_neutral_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/star_poses.npy'
+file_path = path_neutral_star = '/STAR/Code/manipulated_star_poses.npy'
 
 # Load the .npy file
 data = np.load(file_path)

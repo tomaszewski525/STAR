@@ -60,7 +60,7 @@ def edge_loss(d,smpl):
 def edge_loss_scan(star, scan):
     print(star)
     print(scan)
-def verts_loss_scan(star_cp,scan_cp, scan_landmarks={}, star_landmarks={}, labels=[]):
+def verts_loss_scan(star_cp,scan_cp):
     # Calculate distances
     star_cp = star_cp
     scan_cp = scan_cp
@@ -73,24 +73,6 @@ def verts_loss_scan(star_cp,scan_cp, scan_landmarks={}, star_landmarks={}, label
     # Calculate total distance
     total_distance = torch.sum(min_distances)
 
-    """
-    total_loss = 0
-    total_distance = 0
-    for label in labels:
-        star = star_cp[0, star_landmarks[label], :]
-        scan = scan_cp[0, scan_landmarks[label], :]
-        # Reshape tensors to have a common size
-        str_1 = star.view(-1, 3)
-        str_2 = scan.view(-1, 3)
-
-        # Calculate the Euclidean distance between each pair of points
-        distances = torch.cdist(str_1, str_2, p=2)
-
-        # Sum up the distances
-        total_distance = torch.sum(distances) + total_distance
-
-    print(total_distance/10e7)
-    """
     print(total_distance)
     return total_distance
 
@@ -292,49 +274,12 @@ def convert_smplx_2_star(smplx,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
 
 
 
-def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
+def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
     '''
         Convert SMPL meshes to STAR
     :param smpl:
     :return:
     '''
-    # Create a visualization window
-    #visualizer = o3d.visualization.Visualizer()
-    #visualizer.create_window()
-
-
-    landmark_path = "C:/Users/tfran/Landmarks_michal.csv"
-    scan_landmarks = {}
-    # Check if the CSV file exists
-    if os.path.exists(landmark_path):
-
-        # Read existing data from the CSV file
-        with open(landmark_path, 'r', newline='') as csvfile:
-            csv_reader = csv.reader(csvfile)
-            next(csv_reader)  # Skip the header row
-            for row in csv_reader:
-                label, vert_index = row
-                if label in scan_landmarks:
-                    scan_landmarks[label].append(int(vert_index))
-                else:
-                    scan_landmarks[label] = [int(vert_index)]
-
-    landmark_path = "C:/Users/tfran/Landmarks_SMPL.csv"
-    star_landmarks = {}
-    # Check if the CSV file exists
-    if os.path.exists(landmark_path):
-
-        # Read existing data from the CSV file
-        with open(landmark_path, 'r', newline='') as csvfile:
-            csv_reader = csv.reader(csvfile)
-            next(csv_reader)  # Skip the header row
-            for row in csv_reader:
-                label, vert_index = row
-                if label in star_landmarks:
-                    star_landmarks[label].append(int(vert_index))
-                else:
-                    star_landmarks[label] = [int(vert_index)]
-
 
     # In other words, it's assuming that smpl is a NumPy array or some other compatible data structure, and it's converting it to a PyTorch tensor residing on the GPU.
     smpl = torch.cuda.FloatTensor(smpl)
@@ -346,8 +291,8 @@ def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
             'The Default optimization parameters (MAX_ITER_EDGES,MAX_ITER_VERTS) were tested on batch size 32 or smaller batches')
 
     # Specify the path to your .npy file
-    file_path = path_neutral_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/star_poses.npy'
-    poses_data = np.load(file_path)
+    file_path = path_neutral_star = '/STAR/Code/manipulated_star_poses.npy'
+    poses_data = np.load(star_poses_file_path)
     poses = torch.cuda.FloatTensor(poses_data)
 
 
@@ -438,7 +383,7 @@ def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
 
 
         def vertex_closure():
-            loss = torch.sum(verts_loss_scan(d*scale, smpl, scan_landmarks, star_landmarks, labels))
+            loss = torch.sum(verts_loss_scan(d*scale, smpl))
             return loss
 
         optimizer.zero_grad()

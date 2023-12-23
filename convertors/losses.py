@@ -346,7 +346,7 @@ def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
             'The Default optimization parameters (MAX_ITER_EDGES,MAX_ITER_VERTS) were tested on batch size 32 or smaller batches')
 
     # Specify the path to your .npy file
-    file_path = path_neutral_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/star_poses.npy'
+    file_path = path_neutral_star = '/STAR/Code/manipulated_star_poses.npy'
     poses_data = np.load(file_path)
     poses = torch.cuda.FloatTensor(poses_data)
 

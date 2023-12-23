@@ -20,7 +20,7 @@ def allign_model(scan_path="michal_skan.ply", tranformed_scan_path="transformed_
     m = STAR(gender='male',num_betas=num_betas)
 
     # Specify the path to your .npy file
-    file_path = path_neutral_star = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/star_poses.npy'
+    file_path = path_neutral_star = '/STAR/Code/manipulated_star_poses.npy'
     data = np.load(file_path)
 
 

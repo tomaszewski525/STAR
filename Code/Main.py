@@ -14,37 +14,46 @@ import Texturize
 import FindTransform
 import ChangeOptimPose
 import convert_scan_to_star
+from avatar_creator import AvatarCreator
 
-scan_path = "michal_skan.ply"
-transformed_scan_path = "transformed_mesh.ply"
-star_poses_save_path = "star_poses.npy"
-star_scan_poses_save_path='michal_skan_star.npy'
-texturized_scan_poses_save_path = 'michal_skan_star_colored.npy'
+scan_path = "Data/michal_skan.ply"
+transformed_scan_path = "Data/transformed_mesh.ply"
+
+star_default_poses_path = "Data/star_poses.npy"
+star_scan_poses_bef_path = "Data/manipulated_star_poses.npy"
+star_scan_poses_aft_path='Data/michal_skan_star.npy'
+texturized_scan_poses_save_path = 'Data/michal_skan_star_colored.npy'
+
+avatar_creator = AvatarCreator(scan_path, transformed_scan_path, star_scan_poses_bef_path)
 
 allign_model = False
 change_optim_pose = False
 optimize_model = False
 texturize_model = False
 visualize_model = False
-apply_joints = False
+apply_joints = True
+
+attach_point_cloud_to_mesh = True
 
 if allign_model:
-    FindTransform.allign_model(scan_path, transformed_scan_path)
+    avatar_creator.allign_scan_to_star(scan_path, star_default_poses_path, transformed_scan_path)
 
 if change_optim_pose:
-    manipulator = ChangeOptimPose.ModelManipulator(star_poses_save_path, transformed_scan_path)
-    manipulator.viusalize()
+    avatar_creator.change_manually_star_pose(star_scan_poses_bef_path, transformed_scan_path)
 
 if optimize_model:
-    convert_scan_to_star.optimize_star_to_scan(transformed_scan_path, star_scan_poses_save_path)
+    avatar_creator.optimize_star_to_scan(transformed_scan_path, star_scan_poses_bef_path, star_scan_poses_aft_path)
 
 if texturize_model:
-    Texturize.texturize_scan_nnn(star_scan_poses_save_path, transformed_scan_path, texturized_scan_poses_save_path)
+    Texturize.texturize_scan_nnn(star_scan_poses_aft_path, transformed_scan_path, texturized_scan_poses_save_path)
+
+
+connection_inidices_of_star = Texturize.attach_pointcloud_to_scan(star_scan_poses_aft_path, transformed_scan_path)
 
 # 1. Repair scan
 # 2. Optimize model
 # 3. Texturize model
-# 4. Aplly Joints rotations
+# 4. Apply Joints rotations
 
 if apply_joints:
     #################### OPTIMIZE MODEL ############################
@@ -52,7 +61,7 @@ if apply_joints:
 
     ####################### LOAD STAR MODEL ########################
     # Load the NumPy structured array from a .npy file
-    point_cloud_data = np.load('michal_skan_star_colored.npy', allow_pickle=True).item()
+    point_cloud_data = np.load(texturized_scan_poses_save_path, allow_pickle=True).item()
     print(point_cloud_data)
     # Extract star_verts
     trans = point_cloud_data['trans']
@@ -182,15 +191,23 @@ if apply_joints:
             nuitrack.create_modules()
             nuitrack.run()
 
-
+    i = 0
     while visualizer.poll_events():
         ######### Visualize ##########
-        print(poses)
+        #print(poses)
         visualizer.clear_geometries()
         d = Texturize.create_star_model(poses, betas, trans)
+
         avatar = Texturize.create_star_mesh(d, star_colors)
+        if i>0:
+            Texturize.calculate_new_scanned_verticies_positions(connection_inidices_of_star, transformed_scan_path, previous_star_verticies, d)
+        else:
+            print(d)
+            i+=1
         visualizer.add_geometry(avatar)
         visualizer.update_renderer()
+
+        previous_star_verticies = d
 
         # GET NUITRACK JOINT VALUE
         key = cv2.waitKey(1)

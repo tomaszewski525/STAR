@@ -10,7 +10,9 @@ import open3d as o3d
 import keyboard
 
 class ModelManipulator:
-    def __init__(self, star_poses_save_file="star_poses.npy", scan_file_path="transformed_mesh.ply"):
+    def __init__(self, star_poses_save_file="manipulated_star_poses.npy", scan_file_path="transformed_mesh.ply"):
+
+        self.star_poses_save_file = star_poses_save_file
 
         ######### Create STAR body model for icp transformation estimation #########
         self.star = STAR(gender='male')
@@ -66,7 +68,7 @@ class ModelManipulator:
                 poses_np = self.poses.cpu().numpy()
 
                 # Save the NumPy array to a .npy file
-                # file_path_npy = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/star_poses.npy'
+                # file_path_npy = 'C:/Users/tfran/Desktop/Inzynierka/STAR/STAR/Code/manipulated_star_poses.npy'
                 np.save(self.star_poses_save_file, poses_np)
 
             if e.name in ["x", "y", "z"]:
