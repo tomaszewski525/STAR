@@ -25,16 +25,43 @@ def find_nearest_neibghour(target, source):
 
     return min_distances, min_indices
 
-def create_star_mesh(d, star_colors):
+
+def find_k_nearest_neibghour(target, k, source):
+    distances = torch.norm(target[:, :, None, :] - source[:, None, :, :], dim=-1)
+
+    # Find nearest neighbors
+    # Find k-nearest neighbors
+    _, indices = torch.topk(distances, k, dim=-1, largest=False)
+
+    return indices
+
+
+
+def create_star_mesh(d, star_colors, translation):
     star_verts = d.cpu().numpy().squeeze()
+    star_verts = star_verts + translation
     star_faces = d.f
 
     avatar = o3d.geometry.TriangleMesh()
     avatar.vertices = o3d.utility.Vector3dVector(star_verts)
     avatar.triangles = o3d.utility.Vector3iVector(star_faces)
+
+
     avatar.vertex_colors = o3d.utility.Vector3dVector(star_colors)
     return avatar
 
+
+def create_star_mesh_no_color(d, translation):
+    star_verts = d.cpu().numpy().squeeze()
+    star_verts = star_verts + translation
+    star_faces = d.f
+
+    avatar = o3d.geometry.TriangleMesh()
+    avatar.vertices = o3d.utility.Vector3dVector(star_verts)
+    avatar.triangles = o3d.utility.Vector3iVector(star_faces)
+
+
+    return avatar
 
 def texturize_scan_nnn(star_scan_poses_path='michal_skan_star.npy', context_mesh_path="transformed_mesh.ply", texturized_scan_save_path='michal_skan_star_colored.npy'):
     ################### LOAD STAR MODEL DATA ###################
@@ -60,7 +87,6 @@ def texturize_scan_nnn(star_scan_poses_path='michal_skan_star.npy', context_mesh
     scan_vertices = np.asarray(scan_mesh.vertices)
     scan_vertices_npy = scan_vertices[np.newaxis, :]
 
-
     scan_vertices_npy = torch.cuda.FloatTensor(scan_vertices_npy)
     ######################################
 
@@ -78,20 +104,79 @@ def texturize_scan_nnn(star_scan_poses_path='michal_skan_star.npy', context_mesh
     ######################################
 
     ################### CREATE TRIANGLE STAR MESH ###################
-    avatar = create_star_mesh(d, star_colors)
+    avatar = create_star_mesh(d, star_colors, trans)
 
     ######################################
 
     # Visualize the mesh
     o3d.visualization.draw_geometries([avatar])
 
-    print(star_colors)
-    print(scale)
+
     results = {'poses': poses, 'betas': betas, 'trans' : trans, 'star_verts' : star_verts,
                'scale' : scale, 'colors': star_colors}
 
     print('Saving the results %s.'%(texturized_scan_save_path))
     np.save(texturized_scan_save_path, results)
+
+
+
+def texturize_scan_k_nnn(star_scan_poses_path='michal_skan_star.npy', context_mesh_path="transformed_mesh.ply",
+                       texturized_scan_save_path='michal_skan_star_colored.npy', k=1):
+    ################### LOAD STAR MODEL DATA ###################
+    # Load the NumPy structured array from a .npy file
+    point_cloud_data = np.load(star_scan_poses_path, allow_pickle=True).item()
+
+    # Extract star_verts
+    trans = point_cloud_data['trans']
+    poses = point_cloud_data['poses']
+    betas = point_cloud_data['betas']
+    star_verts = point_cloud_data['star_verts'][0]
+    scale = point_cloud_data['scale'][0]
+    ######################################
+
+    ################### CREATE STAR MODEL ###################
+    d = create_star_model(poses, betas, trans)
+    ######################################
+    avatar = create_star_mesh_no_color(d, trans)
+    o3d.io.write_triangle_mesh("michal_star.ply", avatar)
+
+    ################### LOAD CONTEXT MESH FOR TEXTURING ###################
+    scan_mesh = o3d.io.read_triangle_mesh(context_mesh_path)
+    scan_vertices = np.asarray(scan_mesh.vertices)
+    scan_vertices_npy = scan_vertices[np.newaxis, :]
+
+    scan_vertices_npy = torch.cuda.FloatTensor(scan_vertices_npy)
+    ######################################
+
+    ################### FIND NEAREST NEIBHOUR ###################
+    indicies = find_k_nearest_neibghour(d, k, scan_vertices_npy)
+    min_distances, min_indices = find_nearest_neibghour(d, scan_vertices_npy)
+    ######################################
+
+    ################### Get avarage vertex color ###################
+    # Get color from scan_mesh for each nearest neighbor
+    scan_vertex_colors = np.asarray(scan_mesh.vertex_colors)
+    # Get color from vertex_colors for each nearest neighbor
+    neighbor_colors = scan_vertex_colors[indicies.cpu().numpy()]
+    # Calculate the average color along the last dimension (k dimension)
+    average_color = np.mean(neighbor_colors, axis=-2)
+    star_colors = average_color.squeeze()
+    ######################################
+    ################### CREATE TRIANGLE STAR MESH ###################
+    avatar = create_star_mesh(d, star_colors, trans)
+
+    ######################################
+
+    # Visualize the mesh
+    o3d.visualization.draw_geometries([avatar])
+
+    results = {'poses': poses, 'betas': betas, 'trans': trans, 'star_verts': star_verts,
+               'scale': scale, 'colors': star_colors}
+
+    print('Saving the results %s.' % (texturized_scan_save_path))
+    np.save(texturized_scan_save_path, results)
+
+
 
 
 def attach_pointcloud_to_scan(star_scan_poses_path='michal_skan_star.npy', context_mesh_path="transformed_mesh.ply"):
@@ -155,8 +240,7 @@ def calculate_new_scanned_verticies_positions(min_indicies, scanned_mesh_file_pa
 
 
     rot, trans = procrustes_analysis_batched(A, B)
-    print(rot)
-    print(trans)
+
     # Use Procrustes to find optimal transformation
     #scale, rot_matrix, translation = torch.linalg.svd(torch.bmm(B.transpose(1, 2), A.transpose(1, 2).transpose(2, 1)))
 

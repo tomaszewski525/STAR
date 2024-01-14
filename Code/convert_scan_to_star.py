@@ -25,7 +25,7 @@ import open3d as o3d
 import torch
 import time
 
-def optimize_star_to_scan(scan_file_path="transformed_mesh.ply",path_save_star_parms='michal_skan_star.npy'):
+def optimize_star_to_scan(scan_file_path="Data/transformed_mesh.ply",path_save_star_parms='Data/michal_skan_star.npy'):
     ### Clear unused GPU memory
     torch.cuda.empty_cache()
 
@@ -33,7 +33,6 @@ def optimize_star_to_scan(scan_file_path="transformed_mesh.ply",path_save_star_p
     scan_mesh = o3d.io.read_triangle_mesh(scan_file_path)
     scan_vertices = np.asarray(scan_mesh.vertices)
     scan_vertices_npy = scan_vertices[np.newaxis, :]
-
 
     star_gender = 'male'   #STAR Model Gender (options: male,female,neutral).
     MAX_ITER_EDGES = 100    #Number of LBFGS iterations for an on edges objective

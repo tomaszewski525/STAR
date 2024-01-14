@@ -64,8 +64,8 @@ def verts_loss_scan(star_cp,scan_cp):
     # Calculate distances
     star_cp = star_cp
     scan_cp = scan_cp
+    distances = torch.norm(star_cp[:, :, None, :] - scan_cp[:, None, :, :], dim=-1).float()
 
-    distances = torch.norm(star_cp[:, :, None, :] - scan_cp[:, None, :, :], dim=-1)
 
     # Find nearest neighbors
     min_distances, min_indices = torch.min(distances, dim=-1)
@@ -354,32 +354,14 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
               'left_elbow', 'right_elbow', 'left_wrist',
               'right_wrist', 'left_hand', 'right_hand']
 
-    ######### Load scanned mesh #########
-    scan_file_path = "transformed_mesh.ply"
-    scan_mesh = o3d.io.read_triangle_mesh(scan_file_path)
-    scan_vertices = np.asarray(scan_mesh.vertices)
-    scan_pc = o3d.geometry.PointCloud()
-    scan_pc.points = o3d.utility.Vector3dVector(scan_vertices)
 
     for t in range(MAX_ITER_VERTS):
-        #visualizer.clear_geometries()
-        #poses = torch.cat((poses), 1)
-        #poses = torch.cat((poses), 1)
         d = star(poses, betas, trans)
 
         print(d)
         print(scale)
         print(t)
         print(MAX_ITER_VERTS)
-
-        star_verticies = d.detach().cpu().numpy()
-        star_verticies = star_verticies.reshape(-1, star_verticies.shape[-1])
-
-        ######### Convert star to point cloud #########
-        star_pc = o3d.geometry.PointCloud()
-        star_pc.points = o3d.utility.Vector3dVector(star_verticies)
-
-
 
 
         def vertex_closure():
@@ -390,10 +372,6 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
         vertex_closure().backward()
         optimizer.step(vertex_closure)
 
-        # Add the point cloud to the visualization
-        #visualizer.add_geometry(scan_mesh)
-        #visualizer.add_geometry(star_pc)
-        #visualizer.update_renderer()
 
     ########################################################################################################################
     np_poses = poses.detach().cpu().numpy()

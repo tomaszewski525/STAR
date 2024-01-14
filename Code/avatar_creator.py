@@ -1,3 +1,4 @@
+import numpy
 from star.pytorch.star import STAR
 import numpy as np
 from numpy import newaxis
@@ -8,6 +9,7 @@ import open3d as o3d
 from ChangeOptimPose import ModelManipulator
 from losses import convert_scan_2_star
 from Texturize import texturize_scan_nnn
+import trimesh
 class AvatarCreator:
     def __init__(self, scan_path, transformed_scan_save_path, star_default_poses_path = "manipulated_star_poses.npy"):
         print("init")
@@ -41,13 +43,17 @@ class AvatarCreator:
         star_pc.points = o3d.utility.Vector3dVector(star_verticies)
 
         ######### Load scanned mesh #########
-        scan_mesh = o3d.io.read_triangle_mesh(scan_path)
+        scan_mesh = o3d.io.read_triangle_mesh(scan_path, True)
+        scan_pc = o3d.geometry.PointCloud()
+        scan_pc.points = o3d.utility.Vector3dVector(scan_mesh.vertices)
+
         scan_vertices = np.asarray(scan_mesh.vertices)
         scan_pc = o3d.geometry.PointCloud()
         scan_pc.points = o3d.utility.Vector3dVector(scan_vertices)
 
         ######### Before icp transform estimation #########
         o3d.visualization.draw_geometries([scan_mesh, star_pc])
+        #o3d.visualization.draw(scan_mesh)
 
         ######### Perform Generalized ICP registration #########
         star_pc.estimate_normals()
@@ -66,6 +72,8 @@ class AvatarCreator:
 
         ######### Save tranformed mesh #########
         o3d.io.write_triangle_mesh(save_scan_path, scan_mesh)
+        o3d.io.write_triangle_mesh("Data/transformed_mesh.ply", scan_mesh)
+
 
 
     def change_manually_star_pose(self, star_poses_save_file, context_scan_path):
@@ -80,7 +88,7 @@ class AvatarCreator:
         scan_mesh = o3d.io.read_triangle_mesh(scan_file_path)
         scan_vertices = np.asarray(scan_mesh.vertices)
         scan_vertices_npy = scan_vertices[np.newaxis, :]
-
+        #print(scan_vertices_npy)
         star_gender = 'male'  # STAR Model Gender (options: male,female,neutral).
         MAX_ITER_EDGES = 100  # Number of LBFGS iterations for an on edges objective
         MAX_ITER_VERTS = 100  # Number of LBFGS iterations for an on vertices objective
