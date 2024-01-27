@@ -385,7 +385,7 @@ def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
     tolerance_change = 0.1
 
     # Target of optimalization is global pose
-    optimizer = torch.optim.Adam([poses, betas, trans, scale], lr=learning_rate)
+    optimizer = torch.optim.Adam([poses, betas, trans], lr=learning_rate)
     #poses = torch.cat((global_pose, all_pose), 1)
 
     # Init star with torch
@@ -438,7 +438,7 @@ def convert_scan_2_star(smpl,MAX_ITER_EDGES,MAX_ITER_VERTS,NUM_BETAS,GENDER):
 
 
         def vertex_closure():
-            loss = torch.sum(verts_loss_scan(d*scale, smpl, scan_landmarks, star_landmarks, labels))
+            loss = torch.sum(verts_loss_scan(d, smpl, scan_landmarks, star_landmarks, labels))
             return loss
 
         optimizer.zero_grad()

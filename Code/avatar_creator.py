@@ -91,7 +91,7 @@ class AvatarCreator:
         #print(scan_vertices_npy)
         star_gender = 'male'  # STAR Model Gender (options: male,female,neutral).
         MAX_ITER_EDGES = 100  # Number of LBFGS iterations for an on edges objective
-        MAX_ITER_VERTS = 100  # Number of LBFGS iterations for an on vertices objective
+        MAX_ITER_VERTS = 500  # Number of LBFGS iterations for an on vertices objective
         NUM_BETAS = 10
 
         opt_parms = {'MAX_ITER_EDGES': MAX_ITER_EDGES,

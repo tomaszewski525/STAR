@@ -50,9 +50,33 @@ def create_star_mesh(d, star_colors, translation):
     avatar.vertex_colors = o3d.utility.Vector3dVector(star_colors)
     return avatar
 
+def create_star_mesh_obj(d, mesh, translation):
+    star_verts = d.cpu().numpy().squeeze()
+    star_verts = star_verts + translation
+    star_faces = d.f
+
+    avatar = o3d.geometry.TriangleMesh()
+    avatar.vertices = o3d.utility.Vector3dVector(star_verts)
+    avatar.triangles = o3d.utility.Vector3iVector(star_faces)
+    avatar.textures = mesh.textures
+    avatar.triangle_uvs = mesh.triangle_uvs
+    avatar.triangle_material_ids = mesh.triangle_material_ids
+    return avatar
 
 def create_star_mesh_no_color(d, translation):
     star_verts = d.cpu().numpy().squeeze()
+    star_verts = star_verts + translation
+    star_faces = d.f
+
+    avatar = o3d.geometry.TriangleMesh()
+    avatar.vertices = o3d.utility.Vector3dVector(star_verts)
+    avatar.triangles = o3d.utility.Vector3iVector(star_faces)
+
+
+    return avatar
+
+def create_star_mesh_no_color_scale(d, translation, scale):
+    star_verts = d.cpu().numpy().squeeze()*scale
     star_verts = star_verts + translation
     star_faces = d.f
 
@@ -137,8 +161,8 @@ def texturize_scan_k_nnn(star_scan_poses_path='michal_skan_star.npy', context_me
     ################### CREATE STAR MODEL ###################
     d = create_star_model(poses, betas, trans)
     ######################################
-    avatar = create_star_mesh_no_color(d, trans)
-    o3d.io.write_triangle_mesh("michal_star.ply", avatar)
+    avatar = create_star_mesh_no_color_scale(d, trans, scale)
+    o3d.io.write_triangle_mesh("michal_star_2.ply", avatar)
 
     ################### LOAD CONTEXT MESH FOR TEXTURING ###################
     scan_mesh = o3d.io.read_triangle_mesh(context_mesh_path)
@@ -158,6 +182,7 @@ def texturize_scan_k_nnn(star_scan_poses_path='michal_skan_star.npy', context_me
     scan_vertex_colors = np.asarray(scan_mesh.vertex_colors)
     # Get color from vertex_colors for each nearest neighbor
     neighbor_colors = scan_vertex_colors[indicies.cpu().numpy()]
+
     # Calculate the average color along the last dimension (k dimension)
     average_color = np.mean(neighbor_colors, axis=-2)
     star_colors = average_color.squeeze()

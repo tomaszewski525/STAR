@@ -90,6 +90,9 @@ class ModelManipulator:
                     new_values = torch.cuda.FloatTensor(np.arange(1))
                     # Update specific values
                     self.poses[:, indices_to_update] = self.axis_new_value
+                    print(self.poses[:, (int(self.pressed_number)) * 3 ])
+                    print(self.poses[:, (int(self.pressed_number)) * 3 +1])
+                    print(self.poses[:, (int(self.pressed_number)) * 3 +2])
 
             if e.name == "o":
                 if int(self.pressed_number) < 23:

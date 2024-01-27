@@ -18,7 +18,7 @@
 #
 # Code Developed by:
 # Ahmed A. A. Osman
-
+import matplotlib.pyplot as plt
 import torch, os, csv
 import numpy as np
 from star.pytorch.star import STAR
@@ -60,6 +60,8 @@ def edge_loss(d,smpl):
 def edge_loss_scan(star, scan):
     print(star)
     print(scan)
+
+data = []
 def verts_loss_scan(star_cp,scan_cp):
     # Calculate distances
     star_cp = star_cp
@@ -68,11 +70,14 @@ def verts_loss_scan(star_cp,scan_cp):
 
 
     # Find nearest neighbors
-    min_distances, min_indices = torch.min(distances, dim=-1)
+    #min_distances, min_indices = torch.min(distances, dim=-1)
+    # Find k-nearest neighbors
+    min_distances, min_indices = torch.topk(distances, k=1, largest=False, dim=-1)
 
     # Calculate total distance
     total_distance = torch.sum(min_distances)
-
+    global data
+    data.append(total_distance.item())
     print(total_distance)
     return total_distance
 
@@ -291,11 +296,11 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
             'The Default optimization parameters (MAX_ITER_EDGES,MAX_ITER_VERTS) were tested on batch size 32 or smaller batches')
 
     # Specify the path to your .npy file
-    file_path = path_neutral_star = '/STAR/Code/manipulated_star_poses.npy'
     poses_data = np.load(star_poses_file_path)
     poses = torch.cuda.FloatTensor(poses_data)
 
-
+    #poses = torch.cuda.FloatTensor(np.zeros((batch_size, 72)))
+    poses = Variable(poses, requires_grad=True)
     # Init Star model
     star = STAR(gender=GENDER)
     all_pose = torch.cuda.FloatTensor(np.zeros((batch_size, 72-3)))
@@ -326,12 +331,8 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
     by concatenating global_pose with another tensor, possibly for further use in the optimization process or subsequent computations."""
 
     learning_rate = 0.01
-    tolerance_grad = 0.01 # Tolerance for convergence based on the gradient
-    tolerance_change = 0.1
 
     # Target of optimalization is global pose
-    optimizer = torch.optim.Adam([poses, betas, trans, scale], lr=learning_rate)
-    #poses = torch.cat((global_pose, all_pose), 1)
 
     # Init star with torch
     d = star(poses, betas, trans)
@@ -345,25 +346,18 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
     # Target of optimalization is joints_pose, global_pose, trans, betas
 
     optimizer = torch.optim.Adam([poses, betas, trans, scale], lr=learning_rate)
-    labels = ['pelvis', 'left_hip', 'right_hip',
-              'spine1', 'left_knee', 'right_knee',
-              'spine2', 'left_ankle', 'right_ankle',
-              'spine3', 'left_foot', 'right_foot',
-              'neck', 'left_collar', 'right_collar',
-              'head', 'left_shoulder', 'right_shoulder',
-              'left_elbow', 'right_elbow', 'left_wrist',
-              'right_wrist', 'left_hand', 'right_hand']
 
-
+    global data
     for t in range(MAX_ITER_VERTS):
         d = star(poses, betas, trans)
 
-        print(d)
-        print(scale)
+        #print(d)
+        #print(scale)
         print(t)
         print(MAX_ITER_VERTS)
-
-
+        #print(poses)
+        #print(trans)
+        #print(data)
         def vertex_closure():
             loss = torch.sum(verts_loss_scan(d*scale, smpl))
             return loss
@@ -372,6 +366,16 @@ def convert_scan_2_star(smpl, star_poses_file_path, MAX_ITER_EDGES,MAX_ITER_VERT
         vertex_closure().backward()
         optimizer.step(vertex_closure)
 
+    # Create a plot
+    #plt.plot(data)
+
+    # Add labels and title
+    #plt.xlabel('Iteracja')
+    #plt.ylabel('Koszt')
+    #plt.title('Optymalizacja')
+
+    # Display the plot
+    #plt.show()
 
     ########################################################################################################################
     np_poses = poses.detach().cpu().numpy()

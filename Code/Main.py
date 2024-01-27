@@ -6,7 +6,7 @@ import sys, os
 sys.path.append(os.getcwd())
 import torch
 import numpy as np
-
+from star.pytorch.star import STAR
 from scipy.spatial.transform import Rotation
 import cv2
 import open3d as o3d
@@ -16,25 +16,44 @@ import ChangeOptimPose
 import convert_scan_to_star
 from avatar_creator import AvatarCreator
 
-scan_path = "Data/michal_alligned.obj"
-transformed_scan_path = "Data/michal_alligned.obj"
-#transformed_scan_path = "Data/transformed_mesh.ply"
+#scan_path = "Data/Michal_skan_alligned_manually.obj"
+"""
+scan_path = "Data/michal_skan.ply"
+transformed_scan_path = "Data/michal_alligned_PLY.ply"
+star_default_poses_path = "Data/star_poses.npy"
+star_scan_poses_bef_path = "Data/manipulated_star_poses.npy"
+star_scan_poses_aft_path='Data/michal_skan_star_PLY.npy'
+"""
+#transformed_scan_path = "Data/michal_alligned.obj"
+#transformed_scan_path = "Data/Michal_Low_Poly_alligned.obj"
 
+
+
+scan_path = "Data/Michal_skan_alligned_manually.obj"
+transformed_scan_path = "Data/Michal_Low_Poly_alligned.obj"
 star_default_poses_path = "Data/star_poses.npy"
 star_scan_poses_bef_path = "Data/manipulated_star_poses.npy"
 star_scan_poses_aft_path='Data/michal_skan_star.npy'
+
+
+
 texturized_scan_poses_save_path = 'Data/michal_skan_star_colored.npy'
+
+#mesh = o3d.io.read_triangle_mesh("Data\Michal_LowPoly_StarMesh_Texture.obj", True)
+#o3d.visualization.draw_geometries([mesh])
 
 avatar_creator = AvatarCreator(scan_path, transformed_scan_path, star_scan_poses_bef_path)
 
 allign_model = False
 change_optim_pose = False
-optimize_model = True
+optimize_model = False
 texturize_model = False
 visualize_model = False
-apply_joints = False
+apply_joints = True
 
 attach_point_cloud_to_mesh = True
+
+
 
 if allign_model:
     avatar_creator.allign_scan_to_star(scan_path, star_default_poses_path, transformed_scan_path)
@@ -42,16 +61,75 @@ if allign_model:
 if change_optim_pose:
     avatar_creator.change_manually_star_pose(star_scan_poses_bef_path, transformed_scan_path)
 
+if False:
+    # Load the NumPy structured array from a .npy file
+    poses = np.load(star_scan_poses_bef_path, allow_pickle=True)
+
+    star = STAR(gender='male')
+    betas = np.array([
+        np.array([0, 0, 0, 0,
+                  0, 0, 0, 0,
+                  0, 0])])
+    num_betas = 10
+    batch_size = 1
+    m = STAR(gender='male', num_betas=num_betas)
+
+    # Zero pose
+    all_pose = torch.cuda.FloatTensor(np.zeros((batch_size, 72)))
+    poses = torch.cuda.FloatTensor(poses)
+    betas = torch.cuda.FloatTensor(betas)
+
+    trans = torch.cuda.FloatTensor(np.zeros((batch_size, 3)))
+    model = star.forward(all_pose, betas, trans)
+    shaped = model.v_shaped[-1, :, :]
+    star_verticies = model.squeeze().cpu().numpy()
+
+    ######### Convert star to point cloud #########
+    star_pc = o3d.geometry.PointCloud()
+    star_pc.points = o3d.utility.Vector3dVector(star_verticies)
+
+
+    mesh_a = o3d.io.read_triangle_mesh('Data\Michal_Low_Poly_alligned.obj', True)
+    #o3d.io.write_triangle_mesh("michal_star.ply", avatar)
+    o3d.visualization.draw_geometries([star_pc])
+    #mesh_a = o3d.io.read_triangle_mesh(transformed_scan_path, True)
+
+mesh_a = o3d.io.read_triangle_mesh(transformed_scan_path, True)
+print(mesh_a)
 if optimize_model:
-    avatar_creator.optimize_star_to_scan(transformed_scan_path, star_scan_poses_bef_path, star_scan_poses_aft_path)
+    avatar_creator.optimize_star_to_scan(transformed_scan_path, star_default_poses_path, star_scan_poses_aft_path)
 
 if texturize_model:
-    k = 2
+    k = 5
     #Texturize.texturize_scan_nnn(star_scan_poses_aft_path, transformed_scan_path, texturized_scan_poses_save_path)
     Texturize.texturize_scan_k_nnn(star_scan_poses_aft_path, transformed_scan_path, texturized_scan_poses_save_path, k)
 
+if visualize_model:
+    # Load the NumPy structured array from a .npy file
+    point_cloud_data = np.load(star_scan_poses_aft_path, allow_pickle=True).item()
 
-connection_inidices_of_star = Texturize.attach_pointcloud_to_scan(star_scan_poses_aft_path, transformed_scan_path)
+    # Extract star_verts
+    trans = point_cloud_data['trans']
+    poses = point_cloud_data['poses']
+    betas = point_cloud_data['betas']
+    star_verts = point_cloud_data['star_verts'][0]
+    scale = point_cloud_data['scale'][0]
+    ######################################
+
+    ################### CREATE STAR MODEL ###################
+    d = Texturize.create_star_model(poses, betas, trans)
+    ######################################
+    ######### Convert star to point cloud #########
+    star_pc = o3d.geometry.PointCloud()
+    star_pc.points = o3d.utility.Vector3dVector(star_verts)
+
+    d = Texturize.create_star_model(poses, betas, trans)
+
+    mesh_a = o3d.io.read_triangle_mesh(transformed_scan_path, True)
+    o3d.io.write_triangle_mesh("michal_Low_poly_star.ply", Texturize.create_star_mesh_no_color(d, trans))
+    o3d.visualization.draw_geometries([star_pc, mesh_a])
+
+#connection_inidices_of_star = Texturize.attach_pointcloud_to_scan(star_scan_poses_aft_path, transformed_scan_path)
 
 # 1. Repair scan
 # 2. Optimize model
@@ -60,6 +138,7 @@ connection_inidices_of_star = Texturize.attach_pointcloud_to_scan(star_scan_pose
 
 if apply_joints:
     #################### OPTIMIZE MODEL ############################
+    star_mesh = o3d.io.read_triangle_mesh("Data/Michal_LowPoly_star_texturized.obj", True)
 
     ####################### LOAD STAR MODEL ########################
     # Load the NumPy structured array from a .npy file
@@ -83,6 +162,9 @@ if apply_joints:
     ####################################################################
 
     ######################## DATA #########################
+    kin = [[0, 1, 4, 7, 10], [0, 2, 5, 8, 11], [0, 3, 6, 9, 12, 15], [0, 3, 6, 9, 13, 16, 18, 20, 22],
+           [0, 3, 6, 9, 14, 17, 19, 21, 23]]
+
     smpl_joints = {
         0: 'pelvis',
         1: 'left_hip',
@@ -139,7 +221,7 @@ if apply_joints:
     py_nuitrack.JointType.left_wrist, py_nuitrack.JointType.right_wrist, py_nuitrack.JointType.left_hand, py_nuitrack.JointType.right_hand
     ]
 
-    joints_to_ignore =[py_nuitrack.JointType.left_wrist, py_nuitrack.JointType.right_wrist
+    joints_to_ignore =[py_nuitrack.JointType.left_wrist, py_nuitrack.JointType.right_wrist, py_nuitrack.JointType.left_hand,  py_nuitrack.JointType.right_hand
     ]
 
     nuitrack_to_smpl_axis = {
@@ -154,7 +236,7 @@ if apply_joints:
         py_nuitrack.JointType.neck:[-1, 1, 1],
         py_nuitrack.JointType.left_collar:[1, 1, 1],
         py_nuitrack.JointType.right_collar:[1, 1, 1],
-        py_nuitrack.JointType.head:[1, 1, 1],
+        py_nuitrack.JointType.head:[-1, 1, 1],
         py_nuitrack.JointType.left_shoulder:[1, -1, 1],
         py_nuitrack.JointType.right_shoulder:[1, -1, 1],
         py_nuitrack.JointType.left_elbow:[-1, -1, 1],
@@ -210,6 +292,27 @@ if apply_joints:
         py_nuitrack.JointType.right_hand: [],
     }
 
+    def get_star_kinematic_chain(joint):
+        connections = [[0,1],[0,2],[0,3],[1,4],[2,5],[3,6],[4,7],
+                       [5,8],[6,9],[7,10],[8,11],[9,12],[9,13],[9,14],
+                       [12,15],[13,16],[14,17],[16,18],[17,19],[18,20],
+                       [19,21],[20,22],[21,23]]
+
+        kin = [[0,1,4,7,10], [0,2,5,8,11], [0,3,6,9,12,15], [0,3,6,9,13,16,18,20,22], [0,3,6,9,14,17,19,21,23]]
+
+        joints_that_influence = []
+        for chain in kin:
+            for j in chain:
+                if j == joint:
+                    return joints_that_influence
+                else:
+                    joints_that_influence.append(j)
+
+            joints_that_influence = []
+
+
+        return joints_that_influence
+
     circular_buffer = {
         py_nuitrack.JointType.waist: [],
         py_nuitrack.JointType.left_hip: [],
@@ -246,9 +349,29 @@ if apply_joints:
         return poses
 
 
+    def get_joint_orientation(joint_num):
+        x = poses[0, joint_num * 3]
+        y = poses[0, joint_num * 3 + 1]
+        z = poses[0, joint_num * 3 + 2]
+
+        return [x,y,z]
+
+
     BUFFER_SIZE = 150
     TIME_THRESHOLD = 1.0
 
+
+    def convert_to_relative_rotation(glob_joint, global_orientation):
+        joints = get_star_kinematic_chain(glob_joint)
+
+        for joint in joints:
+            local_orientation = get_joint_orientation(joint)
+
+            global_orientation[0] = global_orientation[0] - local_orientation[0]
+            global_orientation[1] = global_orientation[1] - local_orientation[1]
+            global_orientation[2] = global_orientation[2] - local_orientation[2]
+
+        return global_orientation
 
 
     def add_data(orientation, joint_type):
@@ -322,7 +445,7 @@ if apply_joints:
 
     i = 0
     start_time = time.time()
-    joint_avarage_time = 0.5
+    joint_avarage_time = 0.01
     start_postion = np.array([0,0,0], dtype=np.float32)
     translation = np.array([0,0,0], dtype=np.float32)
 
@@ -330,15 +453,16 @@ if apply_joints:
 
 
         ######### Visualize ##########
-        #print(poses)
+
         visualizer.clear_geometries()
         d = Texturize.create_star_model(poses, betas, trans)
 
-        avatar = Texturize.create_star_mesh(d, star_colors, translation)
-        if i>0:
-            Texturize.calculate_new_scanned_verticies_positions(connection_inidices_of_star, transformed_scan_path, previous_star_verticies, d)
-        else:
-            i+=1
+        avatar = Texturize.create_star_mesh_obj(d, star_mesh, translation)
+
+        #if i>0:
+            #Texturize.calculate_new_scanned_verticies_positions(connection_inidices_of_star, transformed_scan_path, previous_star_verticies, d)
+        #else:
+         #   i+=1
         visualizer.add_geometry(avatar)
         visualizer.update_renderer()
 
@@ -365,14 +489,18 @@ if apply_joints:
 
                             for joint in joints:
 
+                                # global orientation
                                 orientation = convert_rot_mat_to_euler(el.orientation)
                                 orientation = [axis_convert[0]*orientation[0], axis_convert[1]*orientation[1],
                                                axis_convert[2]*orientation[2]]
 
-
-                                add_data(orientation, el.type)
-                                orientation = get_average_orientation(el.type)
-                                poses = manipulate_joint(joint, orientation, poses)
+                                local_orientation = convert_to_relative_rotation(joint, orientation)
+                                if el.type == py_nuitrack.JointType.left_shoulder or el.type == py_nuitrack.JointType.left_elbow:
+                                    print(local_orientation)
+                                    print(el.type)
+                                add_data(local_orientation, el.type)
+                                local_orientation = get_average_orientation(el.type)
+                                poses = manipulate_joint(joint, local_orientation, poses)
                     else:
                         if el.type not in joints_to_ignore:
                             all_joints.remove(el.type)
